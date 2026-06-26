@@ -20,7 +20,7 @@ Manually reviewing vendor contracts against internal policy is slow and inconsis
 ## Project structure
 
 ```
-contract-audit-ai/
+multi-agent-contract-review-system/
 ├── README.md
 ├── LICENSE
 ├── .gitignore
