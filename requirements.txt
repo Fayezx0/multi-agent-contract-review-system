@@ -1,5 +1,13 @@
+# Core agent pipeline dependencies (used directly in the notebook)
 chromadb>=0.5.0
 tiktoken>=0.7.0
 groq>=0.9.0
 matplotlib>=3.8.0
 pandas>=2.1.0
+
+# Needed only to run the notebook locally via `jupyter notebook`.
+# Not required on Google Colab, which already ships with Jupyter.
+jupyter>=1.0.0
+
+# Optional — only needed if you swap SimulatedS3Client for real AWS S3 ingestion.
+# boto3>=1.34.0

@@ -16,26 +16,6 @@ Manually reviewing vendor contracts against internal policy is slow and inconsis
 - Check its own fix before handing it over, instead of trusting a single LLM pass
 - Do all of this with full visibility into latency, tokens, and cost
 
-## Project structure
-
-```
-contract-audit-ai/
-├── README.md
-├── LICENSE
-├── .gitignore
-├── .gitattributes
-├── .env.example
-├── requirements.txt
-├── notebooks/
-│   └── contract_audit_agent.ipynb
-└── data/
-    └── sample_contracts/
-        ├── acmetech_mutual_nda_v3.txt
-        └── dataflow_systems_msa_v1.txt
-```
-
-> **Note on `data/sample_contracts/`:** the notebook currently ingests these two contracts from an in-memory `SimulatedS3Client` (so it runs with zero setup). The `.txt` files in this folder are the same two contracts in plain-text form, included so the source documents are visible/diffable outside the notebook and so you have something to point a real ingestion step at. To actually read from these files (or from real S3 via `boto3`), swap the body of `SimulatedS3Client.get_contract()` — the rest of the pipeline doesn't need to change.
-
 ## Architecture
 
 Seven agents, each with a single responsibility, coordinated by an orchestrator that runs two confidence-gated retry loops:
@@ -91,55 +71,28 @@ This is the part I spent the most time on, because it's what actually makes this
 - **Vector retrieval:** [ChromaDB](https://www.trychroma.com/) (in-memory, cosine similarity)
 - **Token accounting:** `tiktoken`
 - **Data & reporting:** `pandas`, `matplotlib`
-- **Runtime:** Python 3.10+
-
-## Setup
-
-### Option A — Google Colab (fastest, zero local setup)
-
-1. Open `notebooks/contract_audit_agent.ipynb` in Google Colab
-2. Add a Colab secret named `GROQ_API_KEY` with your [Groq API key](https://console.groq.com/) and enable notebook access
-3. `Runtime → Run all` — dependencies install automatically in the first cell
-
-### Option B — Run locally
-
-```bash
-git clone <repo-url>
-cd contract-audit-ai
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-Set your Groq API key (either works — the notebook checks `GROQ_API_KEY` as an environment variable when it's not running in Colab):
-
-```bash
-cp .env.example .env        # then edit .env and paste your real key
-export GROQ_API_KEY="your-key-here"   # Windows PowerShell: $env:GROQ_API_KEY="your-key-here"
-```
-
-> The notebook reads `GROQ_API_KEY` directly from the environment — it does not auto-load `.env` files. `cp .env.example .env` is there so you have a private place to keep the key, but you still need to `export` it (or add `python-dotenv` + `load_dotenv()` yourself if you'd rather not export it manually each session).
-
-Then launch the notebook and run all cells top to bottom:
-
-```bash
-jupyter notebook notebooks/contract_audit_agent.ipynb
-```
+- **Runtime:** Python 3.10+, designed to run in Google Colab
 
 ## Observability, not just outputs
 
 Every LLM call — including re-judge and re-rewrite attempts — is wrapped in a `time.perf_counter()` timer and counted with `tiktoken` *before* the response is even parsed, so metrics are captured even when the model returns malformed JSON. Every agent that depends on JSON output has a layered fallback: direct parse → regex extraction → a safe sentinel result. Nothing in the pipeline throws and stops the whole run — a bad clause degrades gracefully into a flagged "Parse Error" row, and a fix that can't be verified gets labeled for human review, instead of crashing the notebook or shipping silently.
 
-## Sample contracts
+## Running it
 
-Two sample vendor contracts ship with this repo (see [`data/sample_contracts/`](data/sample_contracts/)), each containing deliberately planted policy violations so the pipeline has something real to catch:
+1. Open the notebook in Google Colab
+2. Add a Colab secret named `GROQ_API_KEY` with your [Groq API key](https://console.groq.com/) and enable notebook access
+3. `Runtime → Run all`
 
-| File | Type | Planted issues |
-|---|---|---|
-| `acmetech_mutual_nda_v3.txt` | Mutual NDA | Short confidentiality term (1 year vs. 3-year policy minimum), oversized liability cap, slow breach-notification window (30 days vs. GDPR's 72-hour requirement) |
-| `dataflow_systems_msa_v1.txt` | Master Services Agreement | Too-short termination notice (7 days vs. 90-day policy minimum), GDPR notification gap (96 hours vs. 72-hour requirement), unlimited liability clause |
+That's it — no other setup. Dependencies install automatically in the first cell.
 
-These same two contracts are pre-loaded inside the notebook's `SimulatedS3Client` so the pipeline runs end-to-end with zero external setup. Swap that class for real `boto3` S3 calls and the rest of the pipeline doesn't need to change.
+## Sample contracts included
+
+Two sample vendor contracts ship with the notebook, each containing deliberately planted policy violations so the pipeline has something real to catch:
+
+- A **Mutual NDA** (weak confidentiality term, an oversized liability cap, a slow breach-notification window)
+- A **Master Services Agreement** (a too-short termination notice period, a GDPR notification gap, an unlimited liability clause)
+
+Swap these out for `boto3` calls to a real S3 bucket and the rest of the pipeline doesn't need to change.
 
 ## Possible next steps
 
@@ -150,4 +103,4 @@ These same two contracts are pre-loaded inside the notebook's `SimulatedS3Client
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Use it, fork it, break it, learn from it.
+MIT — use it, fork it, break it, learn from it.
