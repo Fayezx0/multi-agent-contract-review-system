@@ -16,6 +16,7 @@ Manually reviewing vendor contracts against internal policy is slow and inconsis
 - Check its own fix before handing it over, instead of trusting a single LLM pass
 - Do all of this with full visibility into latency, tokens, and cost
 
+<<<<<<< HEAD
 ## Project structure
 
 ```
@@ -36,6 +37,8 @@ contract-audit-ai/
 
 > **Note on `data/sample_contracts/`:** the notebook currently ingests these two contracts from an in-memory `SimulatedS3Client` (so it runs with zero setup). The `.txt` files in this folder are the same two contracts in plain-text form, included so the source documents are visible/diffable outside the notebook and so you have something to point a real ingestion step at. To actually read from these files (or from real S3 via `boto3`), swap the body of `SimulatedS3Client.get_contract()` — the rest of the pipeline doesn't need to change.
 
+=======
+>>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
 ## Architecture
 
 Seven agents, each with a single responsibility, coordinated by an orchestrator that runs two confidence-gated retry loops:
@@ -91,6 +94,7 @@ This is the part I spent the most time on, because it's what actually makes this
 - **Vector retrieval:** [ChromaDB](https://www.trychroma.com/) (in-memory, cosine similarity)
 - **Token accounting:** `tiktoken`
 - **Data & reporting:** `pandas`, `matplotlib`
+<<<<<<< HEAD
 - **Runtime:** Python 3.10+
 
 ## Setup
@@ -125,11 +129,15 @@ Then launch the notebook and run all cells top to bottom:
 ```bash
 jupyter notebook notebooks/contract_audit_agent.ipynb
 ```
+=======
+- **Runtime:** Python 3.10+, designed to run in Google Colab
+>>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
 
 ## Observability, not just outputs
 
 Every LLM call — including re-judge and re-rewrite attempts — is wrapped in a `time.perf_counter()` timer and counted with `tiktoken` *before* the response is even parsed, so metrics are captured even when the model returns malformed JSON. Every agent that depends on JSON output has a layered fallback: direct parse → regex extraction → a safe sentinel result. Nothing in the pipeline throws and stops the whole run — a bad clause degrades gracefully into a flagged "Parse Error" row, and a fix that can't be verified gets labeled for human review, instead of crashing the notebook or shipping silently.
 
+<<<<<<< HEAD
 ## Sample contracts
 
 Two sample vendor contracts ship with this repo (see [`data/sample_contracts/`](data/sample_contracts/)), each containing deliberately planted policy violations so the pipeline has something real to catch:
@@ -140,6 +148,24 @@ Two sample vendor contracts ship with this repo (see [`data/sample_contracts/`](
 | `dataflow_systems_msa_v1.txt` | Master Services Agreement | Too-short termination notice (7 days vs. 90-day policy minimum), GDPR notification gap (96 hours vs. 72-hour requirement), unlimited liability clause |
 
 These same two contracts are pre-loaded inside the notebook's `SimulatedS3Client` so the pipeline runs end-to-end with zero external setup. Swap that class for real `boto3` S3 calls and the rest of the pipeline doesn't need to change.
+=======
+## Running it
+
+1. Open the notebook in Google Colab
+2. Add a Colab secret named `GROQ_API_KEY` with your [Groq API key](https://console.groq.com/) and enable notebook access
+3. `Runtime → Run all`
+
+That's it — no other setup. Dependencies install automatically in the first cell.
+
+## Sample contracts included
+
+Two sample vendor contracts ship with the notebook, each containing deliberately planted policy violations so the pipeline has something real to catch:
+
+- A **Mutual NDA** (weak confidentiality term, an oversized liability cap, a slow breach-notification window)
+- A **Master Services Agreement** (a too-short termination notice period, a GDPR notification gap, an unlimited liability clause)
+
+Swap these out for `boto3` calls to a real S3 bucket and the rest of the pipeline doesn't need to change.
+>>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
 
 ## Possible next steps
 
@@ -150,4 +176,8 @@ These same two contracts are pre-loaded inside the notebook's `SimulatedS3Client
 
 ## License
 
+<<<<<<< HEAD
 MIT — see [LICENSE](LICENSE). Use it, fork it, break it, learn from it.
+=======
+MIT — use it, fork it, break it, learn from it.
+>>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
