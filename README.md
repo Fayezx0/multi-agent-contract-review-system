@@ -16,6 +16,32 @@ Manually reviewing vendor contracts against internal policy is slow and inconsis
 - Check its own fix before handing it over, instead of trusting a single LLM pass
 - Do all of this with full visibility into latency, tokens, and cost
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+## Project structure
+
+```
+multi-agent-contract-review-system/
+├── README.md
+├── LICENSE
+├── .gitignore
+├── .gitattributes
+├── .env.example
+├── requirements.txt
+├── notebooks/
+│   └── contract_audit_agent.ipynb
+└── data/
+    └── sample_contracts/
+        ├── acmetech_mutual_nda_v3.txt
+        └── dataflow_systems_msa_v1.txt
+```
+
+> **Note on `data/sample_contracts/`:** the notebook currently ingests these two contracts from an in-memory `SimulatedS3Client` (so it runs with zero setup). The `.txt` files in this folder are the same two contracts in plain-text form, included so the source documents are visible/diffable outside the notebook and so you have something to point a real ingestion step at. To actually read from these files (or from real S3 via `boto3`), swap the body of `SimulatedS3Client.get_contract()` — the rest of the pipeline doesn't need to change.
+
+=======
+>>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
+>>>>>>> 135c89ff5d37a62200a9e76158a3306e67f3ee9b
 ## Architecture
 
 Seven agents, each with a single responsibility, coordinated by an orchestrator that sits above the pipeline and runs two confidence-gated retry loops:
