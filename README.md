@@ -16,48 +16,33 @@ Manually reviewing vendor contracts against internal policy is slow and inconsis
 - Check its own fix before handing it over, instead of trusting a single LLM pass
 - Do all of this with full visibility into latency, tokens, and cost
 
-<<<<<<< HEAD
-## Project structure
-
-```
-contract-audit-ai/
-├── README.md
-├── LICENSE
-├── .gitignore
-├── .gitattributes
-├── .env.example
-├── requirements.txt
-├── notebooks/
-│   └── contract_audit_agent.ipynb
-└── data/
-    └── sample_contracts/
-        ├── acmetech_mutual_nda_v3.txt
-        └── dataflow_systems_msa_v1.txt
-```
-
-> **Note on `data/sample_contracts/`:** the notebook currently ingests these two contracts from an in-memory `SimulatedS3Client` (so it runs with zero setup). The `.txt` files in this folder are the same two contracts in plain-text form, included so the source documents are visible/diffable outside the notebook and so you have something to point a real ingestion step at. To actually read from these files (or from real S3 via `boto3`), swap the body of `SimulatedS3Client.get_contract()` — the rest of the pipeline doesn't need to change.
-
-=======
->>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
 ## Architecture
 
-Seven agents, each with a single responsibility, coordinated by an orchestrator that runs two confidence-gated retry loops:
+Seven agents, each with a single responsibility, coordinated by an orchestrator that sits above the pipeline and runs two confidence-gated retry loops:
 
 ```
-ContractParserAgent
-        ↓
-PolicyRetrievalAgent  ←→  ChromaDB
-        ↓
-ComplianceJudgeAgent  ←→  Groq LLM
-        ↓  ⟲ low confidence → re-judge
-RiskScoringAgent
-        ↓
-ContractRewriterAgent ←→  Groq LLM
-        ↓
-ReviewerAgent         ←→  Groq LLM
-        ↓  ⟲ failed review → re-rewrite
-OrchestratorAgent → Final Report
+                    OrchestratorAgent
+                  (coordinates everything below)
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+   ContractParser → PolicyRetrieval → ComplianceJudge → RiskScoring → ContractRewriter
+   (Agent 1)          (Agent 2)          (Agent 3)        (Agent 4)      (Agent 5)
+                                              │                              │
+                                    low confidence?                         ▼
+                                       │       │                      ReviewerAgent
+                                      Yes      No                       (Agent 7)
+                                       │       │                              │
+                              Orchestrator     │                    ┌────────┴────────┐
+                              re-judges    ─────┘                Passed             Failed
+                              (back to                              │                  │
+                               Agent 3)                              ▼                  │
+                                                              Final Report     Orchestrator re-rewrites
+                                                           (assembled by         (back to Agent 5)
+                                                              Agent 6)
 ```
+
+The orchestrator isn't just the last step in a chain — it's the controller sitting above all six other agents. It decides the execution order, inspects the confidence/pass-fail signals each agent reports back, and routes work back to Agent 3 or Agent 5 when a retry is warranted, before finally assembling everything into the report.
 
 | Agent | Role |
 |---|---|
@@ -67,7 +52,7 @@ OrchestratorAgent → Final Report
 | **RiskScoringAgent** | Aggregates every clause verdict into a single 0–100 risk score for the contract, weighted by violation severity and judge confidence, mapped to Low / Medium / High / Critical |
 | **ContractRewriterAgent** | Rewrites only the Non-Compliant clauses into compliant versions, grounded in the judge's own violation reason and suggested fix; compliant clauses are carried over untouched |
 | **ReviewerAgent** | An independent QA pass — re-checks every rewritten clause against the original policy with a skeptical eye, before it's allowed into the final contract |
-| **OrchestratorAgent** | Drives execution order across all six other agents, decides when a verdict needs a second opinion or a rewrite needs another attempt, and assembles the final audit report |
+| **OrchestratorAgent** | Sits above all six other agents as the controller — decides execution order, decides when a verdict needs a second opinion or a rewrite needs another attempt, and assembles the final audit report |
 
 ### The two retry loops
 
@@ -94,61 +79,12 @@ This is the part I spent the most time on, because it's what actually makes this
 - **Vector retrieval:** [ChromaDB](https://www.trychroma.com/) (in-memory, cosine similarity)
 - **Token accounting:** `tiktoken`
 - **Data & reporting:** `pandas`, `matplotlib`
-<<<<<<< HEAD
-- **Runtime:** Python 3.10+
-
-## Setup
-
-### Option A — Google Colab (fastest, zero local setup)
-
-1. Open `notebooks/contract_audit_agent.ipynb` in Google Colab
-2. Add a Colab secret named `GROQ_API_KEY` with your [Groq API key](https://console.groq.com/) and enable notebook access
-3. `Runtime → Run all` — dependencies install automatically in the first cell
-
-### Option B — Run locally
-
-```bash
-git clone <repo-url>
-cd contract-audit-ai
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-Set your Groq API key (either works — the notebook checks `GROQ_API_KEY` as an environment variable when it's not running in Colab):
-
-```bash
-cp .env.example .env        # then edit .env and paste your real key
-export GROQ_API_KEY="your-key-here"   # Windows PowerShell: $env:GROQ_API_KEY="your-key-here"
-```
-
-> The notebook reads `GROQ_API_KEY` directly from the environment — it does not auto-load `.env` files. `cp .env.example .env` is there so you have a private place to keep the key, but you still need to `export` it (or add `python-dotenv` + `load_dotenv()` yourself if you'd rather not export it manually each session).
-
-Then launch the notebook and run all cells top to bottom:
-
-```bash
-jupyter notebook notebooks/contract_audit_agent.ipynb
-```
-=======
 - **Runtime:** Python 3.10+, designed to run in Google Colab
->>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
 
 ## Observability, not just outputs
 
 Every LLM call — including re-judge and re-rewrite attempts — is wrapped in a `time.perf_counter()` timer and counted with `tiktoken` *before* the response is even parsed, so metrics are captured even when the model returns malformed JSON. Every agent that depends on JSON output has a layered fallback: direct parse → regex extraction → a safe sentinel result. Nothing in the pipeline throws and stops the whole run — a bad clause degrades gracefully into a flagged "Parse Error" row, and a fix that can't be verified gets labeled for human review, instead of crashing the notebook or shipping silently.
 
-<<<<<<< HEAD
-## Sample contracts
-
-Two sample vendor contracts ship with this repo (see [`data/sample_contracts/`](data/sample_contracts/)), each containing deliberately planted policy violations so the pipeline has something real to catch:
-
-| File | Type | Planted issues |
-|---|---|---|
-| `acmetech_mutual_nda_v3.txt` | Mutual NDA | Short confidentiality term (1 year vs. 3-year policy minimum), oversized liability cap, slow breach-notification window (30 days vs. GDPR's 72-hour requirement) |
-| `dataflow_systems_msa_v1.txt` | Master Services Agreement | Too-short termination notice (7 days vs. 90-day policy minimum), GDPR notification gap (96 hours vs. 72-hour requirement), unlimited liability clause |
-
-These same two contracts are pre-loaded inside the notebook's `SimulatedS3Client` so the pipeline runs end-to-end with zero external setup. Swap that class for real `boto3` S3 calls and the rest of the pipeline doesn't need to change.
-=======
 ## Running it
 
 1. Open the notebook in Google Colab
@@ -165,7 +101,6 @@ Two sample vendor contracts ship with the notebook, each containing deliberately
 - A **Master Services Agreement** (a too-short termination notice period, a GDPR notification gap, an unlimited liability clause)
 
 Swap these out for `boto3` calls to a real S3 bucket and the rest of the pipeline doesn't need to change.
->>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
 
 ## Possible next steps
 
@@ -176,8 +111,4 @@ Swap these out for `boto3` calls to a real S3 bucket and the rest of the pipelin
 
 ## License
 
-<<<<<<< HEAD
-MIT — see [LICENSE](LICENSE). Use it, fork it, break it, learn from it.
-=======
 MIT — use it, fork it, break it, learn from it.
->>>>>>> 6ee6bc8bc9090027bff2b49ef55790d3a6ad8968
